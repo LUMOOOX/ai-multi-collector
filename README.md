@@ -22,7 +22,7 @@ Universal userscript for collecting code blocks from AI chat responses.
 ## Installation
 
 1. Install Tampermonkey or Violentmonkey extension
-2. Click [here](https://github.com/ВАШ_АККАУНТ/ai-multi-collector/raw/main/ai-multi-collector.user.js) to install
+2. Click [here](https://github.com/LUMOOOX/ai-multi-collector) to install
 3. Or install from [GreasyFork](https://greasyfork.org/ru/scripts/577321-ai-multi-collector-universal)
 
 ## License
