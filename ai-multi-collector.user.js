@@ -1,9 +1,11 @@
 // ==UserScript==
 // @name         AI Multi-Collector Universal
+// @name:ru      AI Multi-Collector Универсальный
 // @namespace    http://tampermonkey.net/
 // @version      1.3
-// @description  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT Выделите ответ бота одним кликом и скопируйте все блоки кода из сообщения.
-// @author       LUMOOX
+// @description  Universal code collector for DeepSeek, Gemini and ChatGPT. Select bot message and copy all code blocks.
+// @description:ru  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT. Выделите ответ бота и скопируйте все блоки кода.
+// @author       LUMOOOX
 // @license      MIT
 // @match        https://chat.deepseek.com/*
 // @match        https://gemini.google.com/*
@@ -14,8 +16,11 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-end
-// @downloadURL https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.user.js
-// @updateURL https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.meta.js
+// @downloadURL  https://github.com/LUMOOOX/ai-multi-collector/raw/main/ai-multi-collector.user.js
+// @updateURL    https://github.com/LUMOOOX/ai-multi-collector/raw/main/ai-multi-collector.user.js
+// @homepageURL  https://github.com/LUMOOOX/ai-multi-collector
+// @homepageURL:ru https://github.com/LUMOOOX/ai-multi-collector
+// @supportURL   https://github.com/LUMOOOX/ai-multi-collector/issues
 // ==/UserScript==
 
 (function() {
