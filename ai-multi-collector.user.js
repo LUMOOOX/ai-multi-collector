@@ -1,6 +1,5 @@
 // ==UserScript==
 // @name         AI Multi-Collector Universal
-// @name:ru      AI Multi-Collector Универсальный
 // @namespace    http://tampermonkey.net/
 // @version      1.4
 // @description  Universal code collector for DeepSeek, Gemini and ChatGPT. Select bot message and copy all code blocks.
@@ -19,7 +18,6 @@
 // @downloadURL  https://github.com/LUMOOOX/ai-multi-collector/raw/main/ai-multi-collector.user.js
 // @updateURL    https://github.com/LUMOOOX/ai-multi-collector/raw/main/ai-multi-collector.user.js
 // @homepageURL  https://github.com/LUMOOOX/ai-multi-collector
-// @homepageURL:ru https://github.com/LUMOOOX/ai-multi-collector
 // @supportURL   https://github.com/LUMOOOX/ai-multi-collector/issues
 // ==/UserScript==
 
