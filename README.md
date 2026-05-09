@@ -1,30 +1,45 @@
-# AI Multi-Collector Universal
+# AI Multi-Collector Universal 🚀
 
-Universal userscript for collecting code blocks from AI chat responses.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GreasyFork](https://img.shields.io/badge/Install-GreasyFork-red.svg)](https://greasyfork.org/scripts/577321)
 
-## Supported platforms
+**AI Multi-Collector** — это универсальный Tampermonkey-скрипт, который значительно упрощает работу с ответами ИИ. Он позволяет выделить сообщение бота и в один клик скопировать все блоки кода, объединяя их в один чистый текстовый фрагмент.
 
-- DeepSeek (chat.deepseek.com)
-- Gemini (gemini.google.com)
-- ChatGPT (chat.openai.com / chatgpt.com)
+---
 
-## Features
+## ✨ Основные возможности
 
-- Click on bot message to select it
-- Copy all unique code blocks with one click
-- Shows number of blocks and characters copied
-- Auto-detects platform
-- Russian and English interface (auto-detected)
-- Saves last selected message
-- Ctrl+B – select mode, Ctrl+C – copy, Esc – reset
-- Light theme support
+* [cite_start]**⚡ Мульти-платформенность:** Полная поддержка **DeepSeek**, **Gemini** и **ChatGPT** (включая `chatgpt.com`). [cite: 9, 10, 11]
+* [cite_start]**🖱️ Выделение в один клик:** Используйте визуальный режим выбора сообщения или горячие клавиши. [cite: 95, 106]
+* [cite_start]**🧹 Умная очистка:** Автоматически удаляет "мусорные" заголовки языков программирования (javascript, python и т.д.) при копировании из ChatGPT. [cite: 65, 68]
+* [cite_start]**📊 Статус-панель:** Отображает количество скопированных блоков и общее число символов. [cite: 90]
+* [cite_start]**💾 Память выделения:** Скрипт запоминает последнее выбранное сообщение даже после перезагрузки страницы. [cite: 112, 113]
+* **⌨️ Горячие клавиши:**
+    * `Ctrl + B` — Включить режим выбора (Select).
+    * `Ctrl + C` — Скопировать код из выбранного блока.
+    * `Esc` — Сбросить выделение.
 
-## Installation
+---
 
-1. Install Tampermonkey or Violentmonkey extension
-2. Click [here](https://github.com/LUMOOOX/ai-multi-collector) to install
-3. Or install from [GreasyFork](https://greasyfork.org/ru/scripts/577321-ai-multi-collector-universal)
+## 🛠 Установка
 
-## License
+1. Установите расширение **Tampermonkey** для вашего браузера.
+2. Откройте прямую ссылку на установку:
+   👉 [Установить AI Multi-Collector Universal](https://raw.githubusercontent.com/LUMOOOX/ai-multi-collector/main/ai-multi-collector.user.js)
+3. Нажмите кнопку **"Установить"** (или "Обновить") во всплывающем окне расширения.
 
-MIT
+---
+
+## ⚙️ Технические детали
+
+Скрипт написан на чистом JavaScript и использует минимальные ресурсы:
+* [cite_start]**Автоматическая локализация:** Интерфейс переключается на русский или английский в зависимости от языка системы. [cite: 3, 4]
+* [cite_start]**Поддержка тем:** Дизайн панели адаптируется под светлую или темную тему браузера. [cite: 33, 34]
+* **Безопасность:** Не требует доступа к внешним API, работает локально в вашем браузере.
+
+## 📄 Лицензия
+
+[cite_start]Этот проект распространяется под лицензией [MIT](LICENSE). 
+
+---
+Автор: **LUMOOOX**
