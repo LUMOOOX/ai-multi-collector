@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         AI Multi-Collector Universal
 // @namespace    http://tampermonkey.net/
-// @version      1.4
-// @description  Universal code collector for DeepSeek, Gemini and ChatGPT. Select bot message and copy all code blocks.
-// @description:ru  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT. Выделите ответ бота и скопируйте все блоки кода.
+// @version      1.5
+// @description  Universal code collector for DeepSeek, Gemini and ChatGPT
+// @description:ru  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT
 // @author       LUMOOOX
 // @license      MIT
 // @match        https://chat.deepseek.com/*
@@ -24,11 +24,14 @@
 (function() {
     'use strict';
 
+    // БЛОК 2.1: ЗАЩИТА ОТ ДВОЙНОГО ЗАПУСКА
     if (window.__aiCollectorInstalled) return;
     window.__aiCollectorInstalled = true;
 
+    // БЛОК 2.2: ОПРЕДЕЛЕНИЕ ЯЗЫКА
     const LANG = (navigator.language || navigator.userLanguage || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
 
+    // БЛОК 2.3: ТЕКСТЫ ИНТЕРФЕЙСА (EN/RU)
     const TEXTS = {
         en: {
             ready: 'Ready',
@@ -65,9 +68,9 @@
             chars: 'симв.'
         }
     };
-
     const t = TEXTS[LANG];
 
+// БЛОК 3.1: НАСТРОЙКИ ДЛЯ КАЖДОГО САЙТА
     const PLATFORMS = {
         deepseek: {
             name: 'DeepSeek',
@@ -95,6 +98,7 @@
         }
     };
 
+    // БЛОК 3.2: ОПРЕДЕЛЕНИЕ ТЕКУЩЕЙ ПЛАТФОРМЫ
     let currentPlatform = null;
     if (location.hostname.includes('chat.deepseek.com')) {
         currentPlatform = PLATFORMS.deepseek;
@@ -107,6 +111,7 @@
         return;
     }
 
+    // БЛОК 3.3: ФИНАЛЬНАЯ КОНФИГУРАЦИЯ
     const CONFIG = {
         botSelectors: currentPlatform.botSelectors,
         sidebarWidth: currentPlatform.sidebarWidth,
@@ -117,7 +122,15 @@
 
     console.log(`[${currentPlatform.name}] Started (${LANG})`);
 
-GM_addStyle(`
+    // БЛОК 4.1: ОСНОВНЫЕ СТИЛИ ПАНЕЛИ
+    // БЛОК 4.2: СТИЛИ КНОПОК
+    // БЛОК 4.3: СТИЛИ СТАТУСА
+    // БЛОК 4.4: СТИЛИ ВЫДЕЛЕНИЯ СООБЩЕНИЯ
+    // БЛОК 4.5: СТИЛИ ДЛЯ GEMINI
+    // БЛОК 4.6: СТИЛИ ДЛЯ СВЕТЛОЙ ТЕМЫ
+    // БЛОК 4.7: СТИЛИ КНОПКИ-СВЁРТКИ С ПРОЗРАЧНОСТЬЮ
+    GM_addStyle(`
+        /* БЛОК 4.1: Панель управления */
         #ai-collector-panel {
             position: fixed !important;
             top: 150px !important;
@@ -135,7 +148,50 @@ GM_addStyle(`
             font-size: 13px !important;
             box-sizing: border-box !important;
             line-height: 1.4 !important;
+            transition: all 0.2s ease !important;
         }
+
+        /* БЛОК 4.7: Кнопка-свёртка (квадратная) с поддержкой прозрачности */
+        #ai-collapse-btn {
+            position: fixed !important;
+            top: 150px !important;
+            right: 50px !important;
+            z-index: 999999 !important;
+            width: 40px !important;
+            height: 40px !important;
+            background: #3b82f6 !important;
+            border-radius: 10px !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 20px !important;
+            font-weight: bold !important;
+            color: white !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+            transition: opacity 0.3s ease, transform 0.2s ease, background 0.2s ease !important;
+            font-family: system-ui, sans-serif !important;
+            opacity: 1 !important;
+        }
+
+        /* БЛОК 4.7a: Полупрозрачное состояние */
+        #ai-collapse-btn.ai-collapse-transparent {
+            opacity: 0.35 !important;
+        }
+
+        /* БЛОК 4.7b: При наведении — полная видимость */
+        #ai-collapse-btn:hover {
+            opacity: 1 !important;
+            transform: scale(1.05) !important;
+            background: #2563eb !important;
+        }
+
+        /* БЛОК 4.1a: Скрытое состояние панели */
+        .ai-panel-hidden {
+            display: none !important;
+        }
+
+        /* БЛОК 4.2: Кнопки действий */
         .ai-btn {
             display: block !important;
             width: 100% !important;
@@ -158,6 +214,8 @@ GM_addStyle(`
         .ai-pick { background: #3b82f6 !important; }
         .ai-copy { background: #059669 !important; }
         .ai-reset { background: #6b7280 !important; }
+
+        /* БЛОК 4.3: Статус */
         .ai-status {
             display: block !important;
             color: #94a3b8 !important;
@@ -169,6 +227,8 @@ GM_addStyle(`
             border-top: 1px solid #334155 !important;
             line-height: 1.3 !important;
         }
+
+        /* БЛОК 4.4: Выделение сообщения */
         .ai-selected {
             outline: 1px dashed #3b82f6 !important;
             outline-offset: 2px !important;
@@ -177,6 +237,8 @@ GM_addStyle(`
             padding: 2px !important;
             margin: -2px !important;
         }
+
+        /* БЛОК 4.5: Скрытие лишних элементов в Gemini */
         .ai-selected .action-bar,
         .ai-selected [data-testid="action-bar"],
         .ai-selected .feedback-buttons,
@@ -185,9 +247,8 @@ GM_addStyle(`
             outline: none !important;
             background: transparent !important;
         }
-        #ai-collector-panel * {
-            box-sizing: border-box !important;
-        }
+
+        /* БЛОК 4.6: Светлая тема */
         @media (prefers-color-scheme: light) {
             #ai-collector-panel {
                 background: #ffffff !important;
@@ -196,15 +257,45 @@ GM_addStyle(`
             .ai-status {
                 border-top-color: #e2e8f0 !important;
             }
+            #ai-collapse-btn {
+                background: #2563eb !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+            }
+            #ai-collapse-btn.ai-collapse-transparent {
+                opacity: 0.4 !important;
+            }
+            #ai-collapse-btn:hover {
+                background: #3b82f6 !important;
+                opacity: 1 !important;
+            }
         }
     `);
 
-let selected = null;
-    let picking = false;
-    let panel = null;
-    let timer = null;
+    // БЛОК 5.1: ЭЛЕМЕНТЫ ИНТЕРФЕЙСА
+    let selected = null;      // Выделенное сообщение
+    let picking = false;      // Режим выбора
+    let panel = null;         // Панель управления
+    let collapseBtn = null;   // Кнопка-свёртка
+    let timer = null;         // Таймер статуса
+    let isPanelVisible = true; // Состояние панели (видима/скрыта)
 
-function setStatus(msg, color) {
+    // БЛОК 5.2: КЛЮЧ ДЛЯ СОХРАНЕНИЯ СОСТОЯНИЯ СВЁРТКИ
+    const COLLAPSE_STORAGE_KEY = 'ai_collector_panel_collapsed';
+
+    // БЛОК 5.3: ВОССТАНОВЛЕНИЕ СОСТОЯНИЯ ПАНЕЛИ
+    function loadPanelState() {
+        const saved = GM_getValue(COLLAPSE_STORAGE_KEY, false);
+        isPanelVisible = !saved;
+        return isPanelVisible;
+    }
+
+    // БЛОК 5.4: СОХРАНЕНИЕ СОСТОЯНИЯ ПАНЕЛИ
+    function savePanelState(visible) {
+        GM_setValue(COLLAPSE_STORAGE_KEY, !visible);
+    }
+
+// БЛОК 6.1: ОБНОВЛЕНИЕ СТАТУСА
+    function setStatus(msg, color) {
         const el = document.querySelector('#ai-status');
         if (!el) return;
         if (timer) clearTimeout(timer);
@@ -218,12 +309,14 @@ function setStatus(msg, color) {
         }, 1500);
     }
 
+    // БЛОК 6.2: ПРОВЕРКА ОБЛАСТИ КЛИКА (НЕ САЙДБАР)
     function isMainArea(x, y) {
         if (x < CONFIG.sidebarWidth) return false;
         if (y < 50) return false;
         return true;
     }
 
+    // БЛОК 6.3: ОПРЕДЕЛЕНИЕ, ЯВЛЯЕТСЯ ЛИ ЭЛЕМЕНТ ОТВЕТОМ БОТА
     function isBotMessage(element) {
         if (!element) return false;
         let msgElement = element.closest(CONFIG.botSelectors);
@@ -243,6 +336,7 @@ function setStatus(msg, color) {
         return false;
     }
 
+    // БЛОК 6.4: СОХРАНЕНИЕ ПОСЛЕДНЕГО ВЫДЕЛЕННОГО СООБЩЕНИЯ
     function saveLast() {
         if (selected && selected.innerText) {
             const prefix = currentPlatform.name + '_';
@@ -250,7 +344,8 @@ function setStatus(msg, color) {
         }
     }
 
-function findBotMessage(element) {
+// БЛОК 7.1: ПОИСК КОНТЕЙНЕРА С ОТВЕТОМ БОТА
+    function findBotMessage(element) {
         if (!element) return null;
         let botEl = element.closest(CONFIG.botSelectors);
         if (botEl && isBotMessage(botEl)) {
@@ -274,12 +369,14 @@ function findBotMessage(element) {
         return null;
     }
 
+    // БЛОК 7.2: ПРОВЕРКА ВАЛИДНОСТИ СООБЩЕНИЯ (ДЛИНА)
     function isValidMessage(el) {
         if (!el) return false;
         let len = (el.innerText || '').length;
         return len >= CONFIG.minTextLength && len < 100000;
     }
 
+    // БЛОК 7.3: ВЫДЕЛЕНИЕ СООБЩЕНИЯ
     function selectMessage(el) {
         if (selected) selected.classList.remove('ai-selected');
         selected = el;
@@ -293,6 +390,7 @@ function findBotMessage(element) {
         }
     }
 
+    // БЛОК 7.4: СБРОС ВЫДЕЛЕНИЯ
     function resetSelection() {
         if (selected) selected.classList.remove('ai-selected');
         selected = null;
@@ -303,7 +401,9 @@ function findBotMessage(element) {
         GM_setValue(prefix + 'lastMsg', '');
     }
 
-async function copyCode() {
+// БЛОК 8.1: ОСНОВНАЯ ФУНКЦИЯ КОПИРОВАНИЯ
+    async function copyCode() {
+        // БЛОК 8.1a: ПРОВЕРКА НАЛИЧИЯ ВЫДЕЛЕНИЯ
         if (!selected) {
             setStatus(t.selectFirst, '#f59e0b');
             return;
@@ -312,6 +412,7 @@ async function copyCode() {
         let blocks = [];
         let seenSignatures = new Set();
 
+        // БЛОК 8.2: СПИСОК СТОП-СЛОВ (ДЛЯ УДАЛЕНИЯ ЗАГОЛОВКОВ)
         const STOP_WORDS = new Set([
             'javascript', 'python', 'java', 'c++', 'c#', 'c', 'go', 'rust',
             'ruby', 'php', 'html', 'css', 'sql', 'typescript', 'swift',
@@ -319,6 +420,7 @@ async function copyCode() {
             'json', 'xml', 'yaml', 'markdown', 'txt', 'text'
         ]);
 
+        // БЛОК 8.3: ОЧИСТКА БЛОКА ОТ ЗАГОЛОВКА (ТОЛЬКО ДЛЯ CHATGPT)
         function cleanBlock(text, platform) {
             if (platform !== 'ChatGPT') return text;
             let lines = text.split('\n');
@@ -332,16 +434,19 @@ async function copyCode() {
             return text;
         }
 
+        // БЛОК 8.4: ПРОВЕРКА, ЯВЛЯЕТСЯ ЛИ БЛОК ПОЛНОСТЬЮ МУСОРНЫМ
         function isTotallyJunk(text) {
             let trimmed = text.trim().toLowerCase();
             if (STOP_WORDS.has(trimmed)) return true;
             return false;
         }
 
+        // БЛОК 8.5: ПОЛУЧЕНИЕ СИГНАТУРЫ ДЛЯ ДЕДУПЛИКАЦИИ
         function getSignature(text) {
             return text.substring(0, 100).trim().replace(/\s+/g, ' ');
         }
 
+        // БЛОК 8.6: СБОР БЛОКОВ <pre>
         let allPres = selected.querySelectorAll('pre');
         console.log(`[AI-Collector] Pre elements found: ${allPres.length}`);
 
@@ -369,6 +474,7 @@ async function copyCode() {
             }
         }
 
+        // БЛОК 8.7: СБОР БЛОКОВ <code> (ЕСЛИ НЕТ PRE)
         if (blocks.length === 0 && currentPlatform.name !== 'ChatGPT') {
             let allCodes = selected.querySelectorAll('code');
             for (let c of allCodes) {
@@ -386,6 +492,7 @@ async function copyCode() {
             }
         }
 
+        // БЛОК 8.8: СБОР MARKDOWN-БЛОКОВ (```)
         if (blocks.length === 0) {
             let matches = (selected.innerText || '').match(/```[\s\S]*?```/g) || [];
             for (let m of matches) {
@@ -406,17 +513,20 @@ async function copyCode() {
         console.log(`[AI-Collector] Headers cleaned: ${cleanedCount}`);
         console.log(`[AI-Collector] Total blocks: ${blocks.length}`);
 
+        // БЛОК 8.9: ПРОВЕРКА, ЧТО БЛОКИ НАЙДЕНЫ
         if (blocks.length === 0) {
             setStatus(t.noCode, '#ef4444');
             return;
         }
 
+        // БЛОК 8.10: ФОРМИРОВАНИЕ РЕЗУЛЬТАТА И СТАТУСА
         let result = blocks.join('\n\n');
         const totalChars = result.length;
 
         let blockWord = blocks.length === 1 ? t.block : t.blocks;
         let statusMsg = `${t.copied}: ${blocks.length} ${blockWord} (${totalChars} ${t.chars})`;
 
+        // БЛОК 8.11: КОПИРОВАНИЕ В БУФЕР
         try {
             await navigator.clipboard.writeText(result);
             setStatus(statusMsg, '#10b981');
@@ -438,7 +548,54 @@ async function copyCode() {
         }
     }
 
-function createPanel() {
+    // БЛОК 9.1: ПЕРЕКЛЮЧЕНИЕ ВИДИМОСТИ ПАНЕЛИ
+    function togglePanel() {
+        if (isPanelVisible) {
+            // Сворачиваем панель
+            panel.classList.add('ai-panel-hidden');
+            isPanelVisible = false;
+            // Кнопка всегда видна, просто меняем стрелку
+            collapseBtn.textContent = '▲';
+            collapseBtn.title = 'Show panel';
+            collapseBtn.classList.add('ai-collapse-transparent');
+        } else {
+            // Разворачиваем панель
+            panel.classList.remove('ai-panel-hidden');
+            isPanelVisible = true;
+            collapseBtn.textContent = '▼';
+            collapseBtn.title = 'Hide panel';
+            collapseBtn.classList.add('ai-collapse-transparent');
+        }
+        savePanelState(isPanelVisible);
+    }
+
+    // БЛОК 9.2: СОЗДАНИЕ КНОПКИ-СВЁРТКИ (ВСЕГДА ВИДНА, ВСЕГДА ПОЛУПРОЗРАЧНА)
+    function createCollapseButton() {
+        let btn = document.createElement('div');
+        btn.id = 'ai-collapse-btn';
+        btn.textContent = isPanelVisible ? '▼' : '▲';
+        btn.title = isPanelVisible ? 'Hide panel' : 'Show panel';
+        btn.onclick = togglePanel;
+
+        // Всегда полупрозрачная
+        btn.classList.add('ai-collapse-transparent');
+
+        // При наведении мыши убираем прозрачность
+        btn.onmouseenter = () => {
+            btn.classList.remove('ai-collapse-transparent');
+        };
+
+        // Когда мышь уходит — снова делаем полупрозрачной
+        btn.onmouseleave = () => {
+            btn.classList.add('ai-collapse-transparent');
+        };
+
+        document.body.appendChild(btn);
+        return btn;
+    }
+
+    // БЛОК 9.3: СОЗДАНИЕ ОСНОВНОЙ ПАНЕЛИ
+    function createPanel() {
         if (document.getElementById('ai-collector-panel')) return document.getElementById('ai-collector-panel');
         let div = document.createElement('div');
         div.id = 'ai-collector-panel';
@@ -472,9 +629,29 @@ function createPanel() {
         return div;
     }
 
+    // БЛОК 9.4: ПРИМЕНЕНИЕ СОХРАНЁННОГО СОСТОЯНИЯ ПАНЕЛИ
+    function applyPanelState() {
+        if (!panel || !collapseBtn) return;
+        if (!isPanelVisible) {
+            panel.classList.add('ai-panel-hidden');
+            collapseBtn.textContent = '▲';
+            collapseBtn.title = 'Show panel';
+        } else {
+            panel.classList.remove('ai-panel-hidden');
+            collapseBtn.textContent = '▼';
+            collapseBtn.title = 'Hide panel';
+        }
+        // Кнопка всегда полупрозрачная
+        collapseBtn.classList.add('ai-collapse-transparent');
+    }
+
+// БЛОК 10.1: ОБРАБОТЧИК КЛИКОВ
     function handleClick(e) {
+        // БЛОК 10.1a: РЕЖИМ ВЫБОРА АКТИВЕН
         if (picking) {
             if (e.target.closest && e.target.closest('#ai-collector-panel')) return;
+            if (e.target.closest && e.target.closest('#ai-collapse-btn')) return;
+
             if (!isMainArea(e.clientX, e.clientY)) {
                 setStatus(t.clickArea, '#ef4444');
                 picking = false;
@@ -493,8 +670,11 @@ function createPanel() {
             e.stopPropagation();
             return;
         }
+
+        // БЛОК 10.1b: СБРОС ПРИ КЛИКЕ ВНЕ ВЫДЕЛЕННОГО СООБЩЕНИЯ
         if (selected && !picking) {
             if (e.target.closest && e.target.closest('#ai-collector-panel')) return;
+            if (e.target.closest && e.target.closest('#ai-collapse-btn')) return;
             const clickedOnSelected = selected.contains(e.target);
             if (!clickedOnSelected) {
                 resetSelection();
@@ -502,7 +682,9 @@ function createPanel() {
         }
     }
 
+    // БЛОК 10.2: ОБРАБОТЧИК ГОРЯЧИХ КЛАВИШ
     function handleKey(e) {
+        // БЛОК 10.2a: CTRL+B (ВЫБОР)
         if (e.ctrlKey && (e.key === 'b' || e.key === 'и')) {
             e.preventDefault();
             picking = true;
@@ -510,6 +692,7 @@ function createPanel() {
             if (panel) panel.style.borderColor = '#f59e0b';
             return;
         }
+        // БЛОК 10.2b: CTRL+C (КОПИРОВАНИЕ, ТОЛЬКО ЕСЛИ ЕСТЬ ВЫДЕЛЕНИЕ)
         if (e.ctrlKey && (e.key === 'c' || e.key === 'с')) {
             if (selected) {
                 e.preventDefault();
@@ -517,15 +700,26 @@ function createPanel() {
             }
             return;
         }
+        // БЛОК 10.2c: ESCAPE (СБРОС)
         if (e.key === 'Escape') {
             resetSelection();
             picking = false;
         }
     }
 
-function init() {
+    // БЛОК 10.3: ИНИЦИАЛИЗАЦИЯ
+    function init() {
         if (!document.body) { setTimeout(init, 1000); return; }
+
+        // БЛОК 10.3a: ВОССТАНОВЛЕНИЕ СОСТОЯНИЯ ПАНЕЛИ
+        loadPanelState();
+
+        // БЛОК 10.3b: СОЗДАНИЕ ЭЛЕМЕНТОВ
         panel = createPanel();
+        collapseBtn = createCollapseButton();
+        applyPanelState();
+
+        // БЛОК 10.3c: ВОССТАНОВЛЕНИЕ ПОСЛЕДНЕГО ВЫДЕЛЕНИЯ
         const prefix = currentPlatform.name + '_';
         let last = GM_getValue(prefix + 'lastMsg', '');
         if (last) {
@@ -542,6 +736,7 @@ function init() {
         console.log(`[${currentPlatform.name}] Ready`);
     }
 
+    // БЛОК 10.4: РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ И ЗАПУСК
     document.addEventListener('click', handleClick, true);
     document.addEventListener('keydown', handleKey);
     if (document.readyState === 'loading') {
