@@ -6,17 +6,17 @@
 // @author       LUMOOOX
 // @license      MIT
 // @match        https://chat.deepseek.com/*
-// @match        https://gemini.google.com/
+// @match        https://gemini.google.com/*
 // @match        https://chatgpt.com/*
 // @icon         data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%233b82f6' viewBox='0 0 24 24'%3E%3Cpath d='M8 6L2 12L8 18L9.5 16.5L5 12L9.5 7.5L8 6ZM16 6L14.5 7.5L19 12L14.5 16.5L16 18L22 12L16 6Z'/%3E%3C/svg%3E
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-end
-// @downloadURL  https://github.com/LUMOOOX/ai-multi-collector/raw/main/ai-multi-collector.user.js
-// @updateURL    https://github.com/LUMOOOX/ai-multi-collector/raw/main/ai-multi-collector.user.js
 // @homepageURL  https://github.com/LUMOOOX/ai-multi-collector
 // @supportURL   https://github.com/LUMOOOX/ai-multi-collector/issues
+// @downloadURL https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.user.js
+// @updateURL https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.meta.js
 // ==/UserScript==
 
 (function() {
