@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AI Multi-Collector Universal
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT
 // @author       LUMOOOX
 // @license      MIT
@@ -15,8 +15,8 @@
 // @run-at       document-end
 // @homepageURL  https://github.com/LUMOOOX/ai-multi-collector
 // @supportURL   https://github.com/LUMOOOX/ai-multi-collector/issues
-// @downloadURL https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.user.js
-// @updateURL https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.meta.js
+// @downloadURL  https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.user.js
+// @updateURL    https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.meta.js
 // ==/UserScript==
 
 (function() {
@@ -25,6 +25,7 @@
     if (window.__aiCollectorInstalled) return;
     window.__aiCollectorInstalled = true;
 
+// ========== 1. НАСТРОЙКИ ЛОКАЛИЗАЦИИ ==========
     const LANG = (navigator.language || navigator.userLanguage || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
 
     const TEXTS = {
@@ -45,7 +46,8 @@
     };
     const t = TEXTS[LANG];
 
-const PLATFORMS = {
+// ========== 2. КОНФИГУРАЦИЯ ПЛАТФОРМ ==========
+    const PLATFORMS = {
         deepseek: {
             name: 'DeepSeek',
             botSelectors: '.ds-markdown, .message-content[data-message-role="assistant"], [data-message-id]',
@@ -54,7 +56,7 @@ const PLATFORMS = {
         },
         gemini: {
             name: 'Gemini',
-            botSelectors: 'model-response, user-query, .message-content',
+            botSelectors: 'model-response, .message-content', // УБРАЛ user-query
             sidebarWidth: 300, minTextLength: 60,
             roleAttribute: null, roleValue: null
         },
@@ -66,6 +68,7 @@ const PLATFORMS = {
         }
     };
 
+// ========== 3. ОПРЕДЕЛЕНИЕ ТЕКУЩЕЙ ПЛАТФОРМЫ ==========
     let currentPlatform = null;
     if (location.hostname.includes('chat.deepseek.com')) {
         currentPlatform = PLATFORMS.deepseek;
@@ -88,18 +91,33 @@ const PLATFORMS = {
 
     console.log(`[${currentPlatform.name}] Started (${LANG})`);
 
-GM_addStyle(`
+// ========== 4. CSS СТИЛИ ==========
+    GM_addStyle(`
+        #ai-collector-panel,
+        #ai-collector-panel *,
+        #ai-collector-panel .ai-btn,
+        #ai-collector-panel .ai-title,
+        #ai-collector-panel .ai-status {
+            box-sizing: border-box !important;
+            text-transform: none !important;
+            letter-spacing: normal !important;
+            line-height: 1.2 !important;
+            text-decoration: none !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        }
+
         #ai-collector-panel {
             position: fixed !important;
-            top: 150px !important;
-            right: 50px !important;
-            z-index: 999999 !important;
+            top: 70px !important;
+            right: 70px !important;
+            z-index: 2147483647 !important;
+            width: 110px !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background: #1e1e2e !important;
             border-radius: 12px !important;
-            width: 150px !important;
-            font-family: system-ui, -apple-system, sans-serif !important;
             font-size: 13px !important;
-            overflow: hidden !important;
             border: 0px solid #3b82f6 !important;
         }
         .ai-title-bar {
@@ -124,11 +142,12 @@ GM_addStyle(`
             margin: 6px 0 !important;
             border: none !important;
             border-radius: 8px !important;
-            font-size: 13px !important;
+            font-size: 12px !important;
             font-weight: 500 !important;
             line-height: 32px !important;
             cursor: pointer !important;
             color: white !important;
+            text-align: center !important;
         }
         .ai-pick { background: #3b82f6 !important; }
         .ai-copy { background: #059669 !important; }
@@ -174,14 +193,18 @@ GM_addStyle(`
                 border-top-color: #e2e8f0 !important;
             }
         }
+        .ai-hidden {
+            display: none !important;
+        }
     `);
 
-let selected = null;
+// ========== 5. ПЕРЕМЕННЫЕ И ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+    let selected = null;
     let picking = false;
     let panel = null;
     let timer = null;
 
-function setStatus(msg, color) {
+    function setStatus(msg, color) {
         const el = document.querySelector('#ai-status');
         if (!el) return;
         if (timer) clearTimeout(timer);
@@ -201,6 +224,14 @@ function setStatus(msg, color) {
         return true;
     }
 
+    function saveLast() {
+        if (selected && selected.innerText) {
+            const prefix = currentPlatform.name + '_';
+            GM_setValue(prefix + 'lastMsg', selected.innerText.slice(0, 100));
+        }
+    }
+
+// ========== 6. ОСНОВНЫЕ ФУНКЦИИ ==========
     function isBotMessage(element) {
         if (!element) return false;
         let msgElement = element.closest(CONFIG.botSelectors);
@@ -220,15 +251,9 @@ function setStatus(msg, color) {
         return false;
     }
 
-    function saveLast() {
-        if (selected && selected.innerText) {
-            const prefix = currentPlatform.name + '_';
-            GM_setValue(prefix + 'lastMsg', selected.innerText.slice(0, 100));
-        }
-    }
-
-function findBotMessage(element) {
+    function findBotMessage(element) {
         if (!element) return null;
+
         let botEl = element.closest(CONFIG.botSelectors);
         if (botEl && isBotMessage(botEl)) {
             if (currentPlatform.name === 'Gemini') {
@@ -237,17 +262,20 @@ function findBotMessage(element) {
             }
             return botEl;
         }
-        let current = element;
-        for (let i = 0; i < 8 && current && current !== document.body; i++) {
-            if (isBotMessage(current)) {
-                if (currentPlatform.name === 'Gemini') {
+
+        // Упрощенный fallback только для Gemini (из-за Shadow DOM)
+        if (currentPlatform.name === 'Gemini') {
+            let current = element;
+            for (let i = 0; i < 5 && current && current !== document.body; i++) {
+                if (isBotMessage(current)) {
                     const textContainer = current.querySelector('.markdown, .prose, [data-message-content]');
                     if (textContainer) return textContainer;
+                    return current;
                 }
-                return current;
+                current = current.parentElement;
             }
-            current = current.parentElement;
         }
+
         return null;
     }
 
@@ -275,7 +303,8 @@ function findBotMessage(element) {
         GM_setValue(prefix + 'lastMsg', '');
     }
 
-async function copyCode() {
+// ========== 7. ФУНКЦИЯ КОПИРОВАНИЯ ==========
+    async function copyCode() {
         if (!selected) {
             setStatus(t.selectFirst, '#f59e0b');
             return;
@@ -293,9 +322,21 @@ async function copyCode() {
 
         function cleanBlock(text, platform) {
             if (platform !== 'ChatGPT') return text;
+
             let lines = text.split('\n');
             if (lines.length === 0) return text;
+
             let firstLine = lines[0].trim().toLowerCase();
+
+            // Проверка на код-блок с указанием языка
+            if (firstLine.startsWith('```') && firstLine.length > 3) {
+                let lang = firstLine.substring(3).trim();
+                if (STOP_WORDS.has(lang) || /^[a-z]+$/i.test(lang)) {
+                    lines[0] = '```';
+                    return lines.join('\n').trim();
+                }
+            }
+
             if (STOP_WORDS.has(firstLine)) {
                 console.log(`[AI-Collector] Removed header: "${lines[0].trim()}"`);
                 lines.shift();
@@ -408,7 +449,8 @@ async function copyCode() {
         }
     }
 
-function createPanel() {
+// ========== 8. СОЗДАНИЕ UI ПАНЕЛИ ==========
+    function createPanel() {
         if (document.getElementById('ai-collector-panel')) return document.getElementById('ai-collector-panel');
         let div = document.createElement('div');
         div.id = 'ai-collector-panel';
@@ -457,9 +499,14 @@ function createPanel() {
         return div;
     }
 
-function handleClick(e) {
+    // ========== 9. ОБРАБОТЧИКИ СОБЫТИЙ ==========
+    function handleClick(e) {
+        // Ранний выход для обычных кликов (оптимизация)
+        if (!picking && !selected) return;
+
+        if (e.target.closest && e.target.closest('#ai-collector-panel')) return;
+
         if (picking) {
-            if (e.target.closest && e.target.closest('#ai-collector-panel')) return;
             if (!isMainArea(e.clientX, e.clientY)) {
                 setStatus(t.clickArea, '#ef4444');
                 picking = false;
@@ -476,35 +523,50 @@ function handleClick(e) {
             e.stopPropagation();
             return;
         }
+
         if (selected && !picking) {
-            if (e.target.closest && e.target.closest('#ai-collector-panel')) return;
             const clickedOnSelected = selected.contains(e.target);
             if (!clickedOnSelected) resetSelection();
         }
     }
 
     function handleKey(e) {
-        if (e.ctrlKey && (e.key === 'b' || e.key === 'и')) {
+        // Ctrl + Shift + H (скрыть/показать)
+        if (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'h' || e.key.toLowerCase() === 'р')) {
+            e.preventDefault();
+            if (panel) {
+                panel.classList.toggle('ai-hidden');
+            }
+            return;
+        }
+
+        // Ctrl + B (выбрать сообщение)
+        if (e.ctrlKey && (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'и')) {
             e.preventDefault();
             picking = true;
             setStatus(t.clickBot, '#f59e0b');
             return;
         }
-        if (e.ctrlKey && (e.key === 'c' || e.key === 'с')) {
+
+        // Ctrl + C (копировать)
+        if (e.ctrlKey && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'с')) {
             if (selected) {
                 e.preventDefault();
                 copyCode();
             }
             return;
         }
+
+        // Escape (сброс)
         if (e.key === 'Escape') {
             resetSelection();
             picking = false;
         }
     }
 
+// ========== 10. ЗАПУСК СКРИПТА ==========
     function init() {
-        if (!document.body) { setTimeout(init, 1000); return; }
+        // document.body гарантированно существует при @run-at document-end
         panel = createPanel();
         const prefix = currentPlatform.name + '_';
         let last = GM_getValue(prefix + 'lastMsg', '');
@@ -524,6 +586,7 @@ function handleClick(e) {
 
     document.addEventListener('click', handleClick, true);
     document.addEventListener('keydown', handleKey);
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
