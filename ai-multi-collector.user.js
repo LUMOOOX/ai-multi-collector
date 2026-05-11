@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AI Multi-Collector Universal
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.8
 // @description  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT
 // @author       LUMOOOX
 // @license      MIT
@@ -56,7 +56,7 @@
         },
         gemini: {
             name: 'Gemini',
-            botSelectors: 'model-response, .message-content', // УБРАЛ user-query
+            botSelectors: 'model-response, .message-content',
             sidebarWidth: 300, minTextLength: 60,
             roleAttribute: null, roleValue: null
         },
@@ -108,8 +108,8 @@
 
         #ai-collector-panel {
             position: fixed !important;
-            top: 70px !important;
-            right: 70px !important;
+            top: 150px !important;
+            right: 50px !important;
             z-index: 2147483647 !important;
             width: 110px !important;
             overflow: hidden !important;
@@ -119,6 +119,11 @@
             border-radius: 12px !important;
             font-size: 13px !important;
             border: 0px solid #3b82f6 !important;
+            opacity: 0.1 !important;
+            transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        #ai-collector-panel:hover {
+            opacity: 1 !important;
         }
         .ai-title-bar {
             background: #2a2a3a !important;
@@ -263,7 +268,6 @@
             return botEl;
         }
 
-        // Упрощенный fallback только для Gemini (из-за Shadow DOM)
         if (currentPlatform.name === 'Gemini') {
             let current = element;
             for (let i = 0; i < 5 && current && current !== document.body; i++) {
@@ -328,7 +332,6 @@
 
             let firstLine = lines[0].trim().toLowerCase();
 
-            // Проверка на код-блок с указанием языка
             if (firstLine.startsWith('```') && firstLine.length > 3) {
                 let lang = firstLine.substring(3).trim();
                 if (STOP_WORDS.has(lang) || /^[a-z]+$/i.test(lang)) {
@@ -460,7 +463,7 @@
 
         let title = document.createElement('span');
         title.className = 'ai-title';
-        title.textContent = 'AI Collector';
+        title.textContent = 'LUMOOOX';
 
         titleBar.appendChild(title);
 
@@ -499,9 +502,8 @@
         return div;
     }
 
-    // ========== 9. ОБРАБОТЧИКИ СОБЫТИЙ ==========
+// ========== 9. ОБРАБОТЧИКИ СОБЫТИЙ ==========
     function handleClick(e) {
-        // Ранний выход для обычных кликов (оптимизация)
         if (!picking && !selected) return;
 
         if (e.target.closest && e.target.closest('#ai-collector-panel')) return;
@@ -531,7 +533,6 @@
     }
 
     function handleKey(e) {
-        // Ctrl + Shift + H (скрыть/показать)
         if (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'h' || e.key.toLowerCase() === 'р')) {
             e.preventDefault();
             if (panel) {
@@ -540,7 +541,6 @@
             return;
         }
 
-        // Ctrl + B (выбрать сообщение)
         if (e.ctrlKey && (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'и')) {
             e.preventDefault();
             picking = true;
@@ -548,7 +548,6 @@
             return;
         }
 
-        // Ctrl + C (копировать)
         if (e.ctrlKey && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'с')) {
             if (selected) {
                 e.preventDefault();
@@ -557,7 +556,6 @@
             return;
         }
 
-        // Escape (сброс)
         if (e.key === 'Escape') {
             resetSelection();
             picking = false;
@@ -566,7 +564,6 @@
 
 // ========== 10. ЗАПУСК СКРИПТА ==========
     function init() {
-        // document.body гарантированно существует при @run-at document-end
         panel = createPanel();
         const prefix = currentPlatform.name + '_';
         let last = GM_getValue(prefix + 'lastMsg', '');
