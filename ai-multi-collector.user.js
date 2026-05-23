@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         AI Multi-Collector Universal
 // @namespace    http://tampermonkey.net/
-// @version      1.8
-// @description  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT
+// @version      2.0
+// @description  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT v2.0: нумерация блоков, раздельное выделение, защита от дурака, горячие клавиши, автоочистка, сброс при смене чата
 // @author       LUMOOOX
 // @license      MIT
 // @match        https://chat.deepseek.com/*
@@ -12,16 +12,12 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_setClipboard
 // @run-at       document-end
-// @homepageURL  https://github.com/LUMOOOX/ai-multi-collector
-// @supportURL   https://github.com/LUMOOOX/ai-multi-collector/issues
-// @downloadURL  https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.user.js
-// @updateURL    https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.meta.js
 // ==/UserScript==
 
 (function() {
     'use strict';
-
     if (window.__aiCollectorInstalled) return;
     window.__aiCollectorInstalled = true;
 
@@ -31,51 +27,57 @@
     const TEXTS = {
         en: {
             ready: 'Ready', select: 'Select', copy: 'Copy', reset: 'Reset',
-            clickBot: 'Click on bot message', clickArea: 'Click on message area',
-            botOnly: 'Bot replies only', selectFirst: 'Select message first',
+            clickBot: 'Click code blocks or messages', clickArea: 'Click on message area',
+            botOnly: 'Bot replies only', selectFirst: 'Select first',
             noCode: 'No code found', selected: 'Selected', resetMsg: 'Reset',
-            copied: 'Copied', block: 'block', blocks: 'blocks', chars: 'chars'
+            copied: 'Copied', block: 'block', blocks: 'blocks', chars: 'chars',
+            maxBlocks: 'Max 50 blocks', storageError: 'Storage error', fullReset: 'Full reset'
         },
         ru: {
             ready: 'Готов', select: 'Выбрать', copy: 'Копировать', reset: 'Сброс',
-            clickBot: 'Кликните по ответу бота', clickArea: 'Кликните по области сообщения',
+            clickBot: 'Клик по блокам кода или сообщениям', clickArea: 'Кликните по области сообщения',
             botOnly: 'Только ответы бота', selectFirst: 'Сначала выберите',
             noCode: 'Код не найден', selected: 'Выбрано', resetMsg: 'Сброшено',
-            copied: 'Скопировано', block: 'блок', blocks: 'блоков', chars: 'симв.'
+            copied: 'Скопировано', block: 'блок', blocks: 'блоков', chars: 'симв.',
+            maxBlocks: 'Максимум 50 блоков', storageError: 'Ошибка хранилища', fullReset: 'Полный сброс'
         }
     };
     const t = TEXTS[LANG];
 
-// ========== 2. КОНФИГУРАЦИЯ ПЛАТФОРМ ==========
-    const PLATFORMS = {
-        deepseek: {
+    // Константы
+    const MAX_BLOCKS = 50;
+    const CLEANUP_INTERVAL = 30000;
+    const URL_CHECK_INTERVAL = 1000;
+
+// ========== 2. ОПРЕДЕЛЕНИЕ ПЛАТФОРМЫ ==========
+    let currentPlatform = null;
+    let platformName = '';
+    let lastUrl = location.href;
+
+    if (location.hostname.includes('chat.deepseek.com')) {
+        platformName = 'deepseek';
+        currentPlatform = {
             name: 'DeepSeek',
             botSelectors: '.ds-markdown, .message-content[data-message-role="assistant"], [data-message-id]',
             sidebarWidth: 280, minTextLength: 60,
             roleAttribute: 'data-message-role', roleValue: 'assistant'
-        },
-        gemini: {
+        };
+    } else if (location.hostname.includes('gemini.google.com')) {
+        platformName = 'gemini';
+        currentPlatform = {
             name: 'Gemini',
             botSelectors: 'model-response, .message-content',
             sidebarWidth: 300, minTextLength: 60,
             roleAttribute: null, roleValue: null
-        },
-        chatgpt: {
+        };
+    } else if (location.hostname.includes('chat.openai.com') || location.hostname.includes('chatgpt.com')) {
+        platformName = 'chatgpt';
+        currentPlatform = {
             name: 'ChatGPT',
             botSelectors: '[data-message-author-role="assistant"], .markdown, .prose',
             sidebarWidth: 260, minTextLength: 60,
             roleAttribute: 'data-message-author-role', roleValue: 'assistant'
-        }
-    };
-
-// ========== 3. ОПРЕДЕЛЕНИЕ ТЕКУЩЕЙ ПЛАТФОРМЫ ==========
-    let currentPlatform = null;
-    if (location.hostname.includes('chat.deepseek.com')) {
-        currentPlatform = PLATFORMS.deepseek;
-    } else if (location.hostname.includes('gemini.google.com')) {
-        currentPlatform = PLATFORMS.gemini;
-    } else if (location.hostname.includes('chat.openai.com') || location.hostname.includes('chatgpt.com')) {
-        currentPlatform = PLATFORMS.chatgpt;
+        };
     } else {
         console.warn('[AI-Collector] Platform not supported');
         return;
@@ -91,7 +93,7 @@
 
     console.log(`[${currentPlatform.name}] Started (${LANG})`);
 
-// ========== 4. CSS СТИЛИ ==========
+// ========== 3. СТИЛИ ПАНЕЛИ ==========
     GM_addStyle(`
         #ai-collector-panel,
         #ai-collector-panel *,
@@ -118,8 +120,7 @@
             background: #1e1e2e !important;
             border-radius: 12px !important;
             font-size: 13px !important;
-            border: 0px solid #3b82f6 !important;
-            opacity: 0.1 !important;
+            opacity: 0.25 !important;
             transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
         #ai-collector-panel:hover {
@@ -166,22 +167,7 @@
             padding-top: 8px !important;
             border-top: 1px solid #334155 !important;
         }
-        .ai-selected {
-            outline: 1px dashed #3b82f6 !important;
-            outline-offset: 2px !important;
-            background: rgba(59, 130, 246, 0.05) !important;
-            border-radius: 8px !important;
-            padding: 2px !important;
-            margin: -2px !important;
-        }
-        .ai-selected .action-bar,
-        .ai-selected [data-testid="action-bar"],
-        .ai-selected .feedback-buttons,
-        .ai-selected .copy-button,
-        .ai-selected .regenerate-button {
-            outline: none !important;
-            background: transparent !important;
-        }
+
         @media (prefers-color-scheme: light) {
             #ai-collector-panel {
                 background: #ffffff !important;
@@ -191,24 +177,70 @@
                 background: #f1f5f9 !important;
                 border-bottom-color: #cbd5e1 !important;
             }
-            .ai-title {
-                color: #1e293b !important;
-            }
-            .ai-status {
-                border-top-color: #e2e8f0 !important;
-            }
+            .ai-title { color: #1e293b !important; }
+            .ai-status { border-top-color: #e2e8f0 !important; }
         }
-        .ai-hidden {
-            display: none !important;
-        }
+        .ai-hidden { display: none !important; }
     `);
 
-// ========== 5. ПЕРЕМЕННЫЕ И ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-    let selected = null;
+// ========== 4. СТИЛИ ВЫДЕЛЕНИЯ ==========
+    let highlightStyles = `
+        .ai-collector-selected {
+            outline: 1.5px dashed #3b82f6 !important;
+            outline-offset: 4px !important;
+            border-radius: 12px !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .ai-collector-block-selected {
+            outline: 1.5px dashed #10b981 !important;
+            outline-offset: 2px !important;
+            border-radius: 16px !important;
+            position: relative !important;
+            transition: all 0.2s ease !important;
+        }
+    `;
+
+    if (platformName === 'deepseek') {
+        highlightStyles += `
+            .ai-collector-selected.ds-markdown {
+                outline: 1.5px dashed #3b82f6 !important;
+                outline-offset: 6px !important;
+            }
+        `;
+    } else if (platformName === 'gemini') {
+        highlightStyles += `
+            .ai-collector-selected,
+            .ai-collector-selected model-response {
+                outline: 1.5px dashed #3b82f6 !important;
+                outline-offset: 20px !important;
+                border-radius: 32px !important;
+            }
+            .ai-collector-block-selected {
+                overflow: hidden !important;
+            }
+        `;
+    } else if (platformName === 'chatgpt') {
+        highlightStyles += `
+            .ai-collector-selected .markdown {
+                outline: 1.5px dashed #3b82f6 !important;
+                outline-offset: 5px !important;
+            }
+        `;
+    }
+
+    GM_addStyle(highlightStyles);
+
+// ========== 5. ПЕРЕМЕННЫЕ ==========
+    let selectedElements = [];
+    let selectedType = null;
+    let blockCounter = 0;
     let picking = false;
     let panel = null;
     let timer = null;
+    let clickTimeout = null;
 
+// ========== 6. БАЗОВЫЕ ФУНКЦИИ ==========
     function setStatus(msg, color) {
         const el = document.querySelector('#ai-status');
         if (!el) return;
@@ -229,16 +261,51 @@
         return true;
     }
 
-    function saveLast() {
-        if (selected && selected.innerText) {
-            const prefix = currentPlatform.name + '_';
-            GM_setValue(prefix + 'lastMsg', selected.innerText.slice(0, 100));
+    function cleanupDeadReferences() {
+        const beforeCount = selectedElements.length;
+        selectedElements = selectedElements.filter(el => el && document.body.contains(el));
+        if (beforeCount !== selectedElements.length) {
+            console.log(`[${currentPlatform.name}] Cleaned ${beforeCount - selectedElements.length} dead references`);
+            // ИСПРАВЛЕНО: пересчитываем нумерацию блоков кода после очистки мертвых ссылок
+            if (selectedType === 'codeblock' && selectedElements.length > 0) {
+                updateBlockNumbers();
+            }
         }
     }
 
-// ========== 6. ОСНОВНЫЕ ФУНКЦИИ ==========
-    function isBotMessage(element) {
+    function isValidMessage(el) {
+        if (!el) return false;
+        const text = el.innerText || '';
+        const len = text.length;
+        return len >= CONFIG.minTextLength && len < 100000;
+    }
+
+    function getSafeText(element) {
+        if (!element || !element.innerText) return '';
+        return element.innerText.trim();
+    }
+
+    function isInteractiveElement(target) {
+        if (target.closest('button[aria-label*="Copy"], button[aria-label*="Копировать"], button[aria-label*="Скачать код"]')) {
+            return true;
+        }
+        if (target.closest('[role="button"], .feedback-buttons, .regenerate-button, .copy-button')) {
+            return true;
+        }
+        return false;
+    }
+
+function isBotMessage(element) {
         if (!element) return false;
+
+        if (platformName === 'chatgpt') {
+            let msgElement = element.closest('[data-message-author-role="assistant"]');
+            if (msgElement) return true;
+            msgElement = element.closest(CONFIG.botSelectors);
+            if (msgElement) return true;
+            return false;
+        }
+
         let msgElement = element.closest(CONFIG.botSelectors);
         if (!msgElement) return false;
         if (CONFIG.roleAttribute && CONFIG.roleValue) {
@@ -248,7 +315,7 @@
         if (msgElement.tagName === 'MODEL-RESPONSE') return true;
         const classes = msgElement.className || '';
         if (classes.includes('ds-markdown')) return true;
-        const text = msgElement.innerText || '';
+        const text = getSafeText(msgElement);
         if (text.length < 30) return false;
         const hasCode = msgElement.querySelector('pre, code');
         if (hasCode && text.length > 100) return true;
@@ -258,6 +325,36 @@
 
     function findBotMessage(element) {
         if (!element) return null;
+
+        if (platformName === 'deepseek') {
+            if (element.closest('._121d384, .md-code-block, button[aria-label*="Copy"], button[aria-label*="Копировать"]')) return null;
+            if (element.closest('pre')) return null;
+            let msgElement = element.closest('.ds-markdown, [data-message-role="assistant"]');
+            if (msgElement) return msgElement;
+            return null;
+        }
+
+        if (platformName === 'chatgpt') {
+            if (element.closest('pre')) return null;
+            if (element.closest('button[aria-label*="Copy"], button[aria-label*="Копировать"]')) return null;
+            if (element.closest('[class*="code-block"], [class*="codeBlock"], .cm-editor, #code-block-viewer')) return null;
+
+            let msgContainer = element.closest('[data-message-author-role="assistant"]');
+            if (msgContainer) {
+                const textContainer = msgContainer.querySelector('.markdown, .prose');
+                if (textContainer) return textContainer;
+                return msgContainer;
+            }
+            let markdown = element.closest('.markdown');
+            if (markdown) return markdown;
+            return null;
+        }
+
+        if (platformName === 'gemini') {
+            if (element.closest('button[aria-label*="Copy"], button[aria-label*="Копировать"], button[aria-label*="Скачать код"]')) return null;
+            if (element.closest('code-block, .code-block, [class*="code-block"]')) return null;
+            if (element.closest('pre')) return null;
+        }
 
         let botEl = element.closest(CONFIG.botSelectors);
         if (botEl && isBotMessage(botEl)) {
@@ -279,44 +376,236 @@
                 current = current.parentElement;
             }
         }
-
         return null;
     }
 
-    function isValidMessage(el) {
-        if (!el) return false;
-        let len = (el.innerText || '').length;
-        return len >= CONFIG.minTextLength && len < 100000;
+function findFullCodeBlock(element) {
+        if (!element) return null;
+
+        let copyButton = element.closest('button[aria-label*="Copy"], button[aria-label*="Копировать"]');
+        if (copyButton) {
+            let container = copyButton.closest('.flex.w-full.items-center.justify-between, .group, .relative');
+            if (container) {
+                let pre = container.querySelector('pre');
+                if (pre) return container;
+            }
+        }
+
+        let pre = element.tagName === 'PRE' ? element : element.closest('pre');
+        if (!pre) {
+            let header = element.closest('.flex.w-full.items-center.justify-between');
+            if (header) {
+                let foundPre = header.parentElement?.querySelector('pre');
+                if (foundPre) return header.parentElement;
+            }
+            return pre;
+        }
+
+        if (platformName === 'gemini') {
+            let parent = pre.parentElement;
+            for (let i = 0; i < 10 && parent && parent !== document.body; i++) {
+                if (parent.classList && (
+                    parent.classList.toString().includes('code-block') ||
+                    parent.classList.toString().includes('code-container') ||
+                    parent.classList.toString().includes('CodeBlock') ||
+                    parent.getAttribute('data-testid') === 'code-block'
+                )) {
+                    return parent;
+                }
+                if (parent.querySelector && parent.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]')) {
+                    return parent;
+                }
+                parent = parent.parentElement;
+            }
+            return pre.closest('div');
+        }
+
+        if (platformName === 'deepseek') {
+            let container = pre.closest('.md-code-block');
+            if (container) return container;
+            let parent = pre.parentElement;
+            for (let i = 0; i < 6 && parent && parent !== document.body; i++) {
+                if (parent.classList && parent.classList.contains('md-code-block')) return parent;
+                parent = parent.parentElement;
+            }
+            return pre.closest('.ds-markdown, .message-content');
+        }
+
+        // ИСПРАВЛЕНО: для ChatGPT ищем компактную обертку, а не любой родитель с кнопкой
+        if (platformName === 'chatgpt') {
+            // Сначала ищем ближайший контейнер с классом code-block или group
+            let codeContainer = pre.closest('.flex.w-full.flex-col, .group, .relative, .code-block');
+            if (codeContainer && codeContainer.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]')) {
+                return codeContainer;
+            }
+            // Если не нашли, поднимаемся до markdown контейнера
+            return pre.closest('.flex.w-full, .markdown');
+        }
+
+        return pre;
     }
 
-    function selectMessage(el) {
-        if (selected) selected.classList.remove('ai-selected');
-        selected = el;
-        selected.classList.add('ai-selected');
-        saveLast();
-        setStatus(t.selected, '#10b981');
-        picking = false;
+// ========== 7. ФУНКЦИИ ВЫДЕЛЕНИЯ ==========
+    function clearVisualSelection() {
+        for (let el of selectedElements) {
+            if (!el) continue;
+            el.classList.remove('ai-collector-selected', 'ai-collector-block-selected');
+            const indicator = el.querySelector(':scope > .ai-block-number-indicator');
+            if (indicator) indicator.remove();
+            el.removeAttribute('data-block-number');
+        }
     }
 
     function resetSelection() {
-        if (selected) selected.classList.remove('ai-selected');
-        selected = null;
+        clearVisualSelection();
+        selectedElements = [];
+        selectedType = null;
+        blockCounter = 0;
         picking = false;
         setStatus(t.resetMsg, '#94a3b8');
-        const prefix = currentPlatform.name + '_';
-        GM_setValue(prefix + 'lastMsg', '');
     }
 
-// ========== 7. ФУНКЦИЯ КОПИРОВАНИЯ ==========
+    function addBlockNumber(element, number) {
+        if (!element || !element.isConnected) return;
+
+        const oldIndicator = element.querySelector(':scope > .ai-block-number-indicator');
+        if (oldIndicator) oldIndicator.remove();
+
+        const indicator = document.createElement('div');
+        indicator.className = 'ai-block-number-indicator';
+        indicator.textContent = number;
+
+        let topOffset = 5;
+        let leftOffset = 5;
+        let rightOffset = 'auto';
+
+        if (platformName === 'deepseek') {
+            topOffset = 12;
+            leftOffset = 90;
+            rightOffset = 'auto';
+        } else if (platformName === 'chatgpt') {
+            topOffset = 15;
+            leftOffset = 125;
+            rightOffset = 'auto';
+        } else if (platformName === 'gemini') {
+            topOffset = 33;
+            leftOffset = 110;
+            rightOffset = 'auto';
+        }
+
+        indicator.style.cssText = `
+            position: absolute;
+            top: ${topOffset}px;
+            ${leftOffset !== 'auto' ? `left: ${leftOffset}px;` : ''}
+            ${rightOffset !== 'auto' ? `right: ${rightOffset}px;` : ''}
+            background: #10b981;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2147483647;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            pointer-events: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        `;
+
+        if (window.getComputedStyle(element).position === 'static') {
+            element.style.position = 'relative';
+        }
+
+        element.appendChild(indicator);
+        element.setAttribute('data-block-number', number);
+    }
+
+    function removeBlockNumber(element) {
+        if (!element) return;
+        const indicator = element.querySelector(':scope > .ai-block-number-indicator');
+        if (indicator) indicator.remove();
+        element.removeAttribute('data-block-number');
+    }
+
+    function updateBlockNumbers() {
+        let counter = 1;
+        for (let el of selectedElements) {
+            if (el && el.classList.contains('ai-collector-block-selected')) {
+                addBlockNumber(el, counter++);
+            }
+        }
+        blockCounter = counter - 1;
+    }
+
+    function toggleElementSelection(el, isCodeBlock) {
+        if (!el || !el.classList) {
+            console.warn('[AI-Collector] Invalid element');
+            return;
+        }
+
+        const index = selectedElements.indexOf(el);
+
+        // Проверка на удаление существующего элемента (снимаем выделение)
+        if (index > -1) {
+            el.classList.remove('ai-collector-selected', 'ai-collector-block-selected');
+            removeBlockNumber(el);
+            selectedElements.splice(index, 1);
+
+            if (selectedElements.length === 0) {
+                selectedType = null;
+                blockCounter = 0;
+            } else {
+                if (selectedType === 'codeblock') {
+                    updateBlockNumbers();
+                }
+            }
+
+            if (selectedElements.length > 0) {
+                setStatus(`${t.selected} (${selectedElements.length})`, '#10b981');
+            } else {
+                setStatus(t.ready, '#94a3b8');
+            }
+            return;
+        }
+
+        // ИСПРАВЛЕНО: проверка на лимит только при добавлении нового элемента
+        if (selectedElements.length >= MAX_BLOCKS) {
+            setStatus(`${t.maxBlocks} (${MAX_BLOCKS})`, '#ef4444');
+            return;
+        }
+
+        if (selectedType === null) {
+            selectedType = isCodeBlock ? 'codeblock' : 'message';
+        } else if ((selectedType === 'codeblock' && !isCodeBlock) ||
+                   (selectedType === 'message' && isCodeBlock)) {
+            setStatus('Нельзя смешивать блоки кода и сообщения', '#ef4444');
+            return;
+        }
+
+        // Добавление нового элемента
+        selectedElements.push(el);
+        if (isCodeBlock) {
+            el.classList.add('ai-collector-block-selected');
+            blockCounter++;
+            addBlockNumber(el, blockCounter);
+        } else {
+            el.classList.add('ai-collector-selected');
+        }
+
+        setStatus(`${t.selected} (${selectedElements.length})`, '#10b981');
+    }
+
+// ========== 8. ФУНКЦИЯ КОПИРОВАНИЯ ==========
     async function copyCode() {
-        if (!selected) {
+        if (selectedElements.length === 0) {
             setStatus(t.selectFirst, '#f59e0b');
             return;
         }
 
         let blocks = [];
         let seenSignatures = new Set();
-
         const STOP_WORDS = new Set([
             'javascript', 'python', 'java', 'c++', 'c#', 'c', 'go', 'rust',
             'ruby', 'php', 'html', 'css', 'sql', 'typescript', 'swift',
@@ -324,73 +613,54 @@
             'json', 'xml', 'yaml', 'markdown', 'txt', 'text'
         ]);
 
-        function cleanBlock(text, platform) {
-            if (platform !== 'ChatGPT') return text;
-
+        function cleanBlock(text) {
             let lines = text.split('\n');
             if (lines.length === 0) return text;
 
-            let firstLine = lines[0].trim().toLowerCase();
+            let firstCodeLine = lines[0].trim();
 
-            if (firstLine.startsWith('```') && firstLine.length > 3) {
-                let lang = firstLine.substring(3).trim();
+            if (/^[a-z][a-z0-9+#.-]+$/i.test(firstCodeLine) &&
+                STOP_WORDS.has(firstCodeLine.toLowerCase())) {
+                lines.shift();
+                return lines.join('\n').trim();
+            }
+
+            if (firstCodeLine.startsWith('```') && firstCodeLine.length > 3) {
+                let lang = firstCodeLine.substring(3).trim();
                 if (STOP_WORDS.has(lang) || /^[a-z]+$/i.test(lang)) {
                     lines[0] = '```';
                     return lines.join('\n').trim();
                 }
             }
 
-            if (STOP_WORDS.has(firstLine)) {
-                console.log(`[AI-Collector] Removed header: "${lines[0].trim()}"`);
-                lines.shift();
-                return lines.join('\n').trim();
-            }
             return text;
         }
 
         function isTotallyJunk(text) {
-            let trimmed = text.trim().toLowerCase();
-            if (STOP_WORDS.has(trimmed)) return true;
-            return false;
+            return STOP_WORDS.has(text.trim().toLowerCase());
         }
 
         function getSignature(text) {
             return text.substring(0, 100).trim().replace(/\s+/g, ' ');
         }
 
-        let allPres = selected.querySelectorAll('pre');
-        console.log(`[AI-Collector] Pre elements found: ${allPres.length}`);
-
-        let filteredCount = 0;
-        let cleanedCount = 0;
-
-        for (let p of allPres) {
-            let rawTxt = p.innerText.trim();
-            if (!rawTxt) continue;
-            if (isTotallyJunk(rawTxt)) {
-                filteredCount++;
-                console.log(`[AI-Collector] Skipped junk block: "${rawTxt}"`);
-                continue;
-            }
-            let cleanedTxt = cleanBlock(rawTxt, currentPlatform.name);
-            if (cleanedTxt !== rawTxt) cleanedCount++;
-            if (!cleanedTxt) continue;
-            let signature = getSignature(cleanedTxt);
-            if (!seenSignatures.has(signature)) {
-                blocks.push(cleanedTxt);
-                seenSignatures.add(signature);
-                console.log(`[AI-Collector] Block added (${cleanedTxt.length} chars)`);
-            }
+        let sortedElements = [...selectedElements];
+        if (selectedType === 'codeblock') {
+            sortedElements.sort((a, b) => {
+                let numA = parseInt(a.getAttribute('data-block-number')) || 0;
+                let numB = parseInt(b.getAttribute('data-block-number')) || 0;
+                return numA - numB;
+            });
         }
 
-        if (blocks.length === 0 && currentPlatform.name !== 'ChatGPT') {
-            let allCodes = selected.querySelectorAll('code');
-            for (let c of allCodes) {
-                if (c.closest('pre')) continue;
-                let rawTxt = c.innerText.trim();
-                if (!rawTxt) continue;
-                if (isTotallyJunk(rawTxt)) continue;
-                let cleanedTxt = cleanBlock(rawTxt, currentPlatform.name);
+        for (let selected of sortedElements) {
+            if (!selected) continue;
+            let allPres = selected.tagName === 'PRE' ? [selected] : selected.querySelectorAll('pre');
+
+            for (let p of allPres) {
+                let rawTxt = getSafeText(p);
+                if (!rawTxt || isTotallyJunk(rawTxt)) continue;
+                let cleanedTxt = cleanBlock(rawTxt);
                 if (!cleanedTxt) continue;
                 let signature = getSignature(cleanedTxt);
                 if (!seenSignatures.has(signature)) {
@@ -398,27 +668,23 @@
                     seenSignatures.add(signature);
                 }
             }
-        }
 
-        if (blocks.length === 0) {
-            let matches = (selected.innerText || '').match(/```[\s\S]*?```/g) || [];
-            for (let m of matches) {
-                let clean = m.replace(/^```\w*\n/, '').replace(/\n```$/, '').trim();
-                if (!clean) continue;
-                if (isTotallyJunk(clean)) continue;
-                let cleanedTxt = cleanBlock(clean, currentPlatform.name);
-                if (!cleanedTxt) continue;
-                let signature = getSignature(cleanedTxt);
-                if (!seenSignatures.has(signature)) {
-                    blocks.push(cleanedTxt);
-                    seenSignatures.add(signature);
+            if (allPres.length === 0 && currentPlatform.name !== 'ChatGPT') {
+                let allCodes = selected.querySelectorAll('code');
+                for (let c of allCodes) {
+                    if (c.closest('pre')) continue;
+                    let rawTxt = getSafeText(c);
+                    if (!rawTxt || isTotallyJunk(rawTxt)) continue;
+                    let cleanedTxt = cleanBlock(rawTxt);
+                    if (!cleanedTxt) continue;
+                    let signature = getSignature(cleanedTxt);
+                    if (!seenSignatures.has(signature)) {
+                        blocks.push(cleanedTxt);
+                        seenSignatures.add(signature);
+                    }
                 }
             }
         }
-
-        console.log(`[AI-Collector] Junk blocks filtered: ${filteredCount}`);
-        console.log(`[AI-Collector] Headers cleaned: ${cleanedCount}`);
-        console.log(`[AI-Collector] Total blocks: ${blocks.length}`);
 
         if (blocks.length === 0) {
             setStatus(t.noCode, '#ef4444');
@@ -427,16 +693,17 @@
 
         let result = blocks.join('\n\n');
         const totalChars = result.length;
-
         let blockWord = blocks.length === 1 ? t.block : t.blocks;
         let statusMsg = `${t.copied}: ${blocks.length} ${blockWord} (${totalChars} ${t.chars})`;
 
         try {
-            await navigator.clipboard.writeText(result);
-            setStatus(statusMsg, '#10b981');
-            console.log(`[AI-Collector] Platform: ${currentPlatform.name}`);
-            console.log(`[AI-Collector] Blocks copied: ${blocks.length}`);
-            console.log(`[AI-Collector] Total size: ${totalChars} chars`);
+            if (typeof GM_setClipboard !== 'undefined') {
+                GM_setClipboard(result, 'text');
+                setStatus(statusMsg, '#10b981');
+            } else {
+                await navigator.clipboard.writeText(result);
+                setStatus(statusMsg, '#10b981');
+            }
         } catch(e) {
             let ta = document.createElement('textarea');
             ta.value = result;
@@ -446,67 +713,57 @@
             document.execCommand('copy');
             ta.remove();
             setStatus(statusMsg, '#10b981');
-            console.log(`[AI-Collector] Platform: ${currentPlatform.name} (fallback)`);
-            console.log(`[AI-Collector] Blocks copied: ${blocks.length}`);
-            console.log(`[AI-Collector] Total size: ${totalChars} chars`);
         }
     }
 
-// ========== 8. СОЗДАНИЕ UI ПАНЕЛИ ==========
+// ========== 9. СОЗДАНИЕ UI ПАНЕЛИ ==========
     function createPanel() {
         if (document.getElementById('ai-collector-panel')) return document.getElementById('ai-collector-panel');
         let div = document.createElement('div');
         div.id = 'ai-collector-panel';
-
         let titleBar = document.createElement('div');
         titleBar.className = 'ai-title-bar';
-
         let title = document.createElement('span');
         title.className = 'ai-title';
         title.textContent = 'LUMOOOX';
-
         titleBar.appendChild(title);
-
         let content = document.createElement('div');
         content.className = 'ai-content';
-
         let btnPick = document.createElement('button');
         btnPick.textContent = t.select;
         btnPick.className = 'ai-btn ai-pick';
-        btnPick.onclick = () => { picking = true; setStatus(t.clickBot, '#f59e0b'); };
-
+        btnPick.onclick = () => {
+            picking = !picking;
+            setStatus(picking ? t.clickBot : t.ready, picking ? '#f59e0b' : '#94a3b8');
+        };
         let btnCopy = document.createElement('button');
         btnCopy.textContent = t.copy;
         btnCopy.className = 'ai-btn ai-copy';
-        btnCopy.onclick = copyCode;
-
+        btnCopy.onclick = () => copyCode();
         let btnReset = document.createElement('button');
         btnReset.textContent = t.reset;
         btnReset.className = 'ai-btn ai-reset';
         btnReset.onclick = resetSelection;
-
         let statusDiv = document.createElement('div');
         statusDiv.id = 'ai-status';
         statusDiv.className = 'ai-status';
         statusDiv.textContent = t.ready;
-
         content.appendChild(btnPick);
         content.appendChild(btnCopy);
         content.appendChild(btnReset);
         content.appendChild(statusDiv);
-
         div.appendChild(titleBar);
         div.appendChild(content);
-
         document.body.appendChild(div);
         return div;
     }
 
-// ========== 9. ОБРАБОТЧИКИ СОБЫТИЙ ==========
+// ========== 10. ОБРАБОТЧИКИ СОБЫТИЙ ==========
     function handleClick(e) {
-        if (!picking && !selected) return;
-
+        if (!picking && selectedElements.length === 0) return;
         if (e.target.closest && e.target.closest('#ai-collector-panel')) return;
+        if (clickTimeout) return;
+        clickTimeout = setTimeout(() => { clickTimeout = null; }, 100);
 
         if (picking) {
             if (!isMainArea(e.clientX, e.clientY)) {
@@ -514,75 +771,165 @@
                 picking = false;
                 return;
             }
+
+            // GEMINI
+            if (platformName === 'gemini') {
+                let clickedCopyButton = e.target.closest('button[aria-label*="Copy"], button[aria-label*="Копировать"], button[aria-label*="Скачать код"]');
+                let clickedCodeBlock = e.target.closest('code-block, .code-block');
+
+                if (clickedCopyButton || clickedCodeBlock) {
+                    let pre = null;
+                    if (clickedCopyButton) {
+                        let container = clickedCopyButton.closest('code-block, .code-block');
+                        if (container) pre = container.querySelector('pre');
+                    }
+                    if (!pre && clickedCodeBlock) pre = clickedCodeBlock.querySelector('pre');
+
+                    if (pre && isBotMessage(pre)) {
+                        let elementToSelect = findFullCodeBlock(pre);
+                        if (elementToSelect) toggleElementSelection(elementToSelect, true);
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+                }
+            }
+
+            // DEEPSEEK
+            if (platformName === 'deepseek') {
+                let clickedHeader = e.target.closest('._121d384, .md-code-block, button[aria-label*="Copy"], button[aria-label*="Копировать"]');
+                if (clickedHeader) {
+                    let container = clickedHeader.closest('.md-code-block');
+                    if (container) {
+                        let pre = container.querySelector('pre');
+                        if (pre && isBotMessage(pre)) {
+                            let elementToSelect = findFullCodeBlock(pre);
+                            if (elementToSelect) toggleElementSelection(elementToSelect, true);
+                            e.preventDefault();
+                            e.stopPropagation();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // CHATGPT - игнорируем клики на шапку
+            if (platformName === 'chatgpt') {
+                let clickedHeader = e.target.closest('.flex.w-full.items-center.justify-between');
+                let clickedCopyButton = e.target.closest('button[aria-label*="Copy"], button[aria-label*="Копировать"]');
+
+                if (clickedHeader || clickedCopyButton) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+            }
+
+            // ОБЩАЯ ПРОВЕРКА: клик на pre
+            let clickedPre = e.target.closest('pre');
+            if (clickedPre && isBotMessage(clickedPre)) {
+                let elementToSelect = findFullCodeBlock(clickedPre);
+                if (elementToSelect) toggleElementSelection(elementToSelect, true);
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+
+            // ОБЫЧНОЕ СООБЩЕНИЕ
             let msg = findBotMessage(e.target);
             if (!msg || !isValidMessage(msg)) {
                 setStatus(t.botOnly, '#ef4444');
                 picking = false;
                 return;
             }
-            selectMessage(msg);
+            toggleElementSelection(msg, false);
             e.preventDefault();
             e.stopPropagation();
             return;
         }
 
-        if (selected && !picking) {
-            const clickedOnSelected = selected.contains(e.target);
-            if (!clickedOnSelected) resetSelection();
+        if (selectedElements.length > 0 && !picking) {
+            if (isInteractiveElement(e.target)) {
+                return;
+            }
+
+            let clickedInsideAny = false;
+            for (let el of selectedElements) {
+                if (el && el.contains(e.target)) {
+                    clickedInsideAny = true;
+                    break;
+                }
+            }
+            if (!clickedInsideAny) {
+                resetSelection();
+            }
         }
     }
 
     function handleKey(e) {
         if (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'h' || e.key.toLowerCase() === 'р')) {
             e.preventDefault();
-            if (panel) {
-                panel.classList.toggle('ai-hidden');
-            }
+            if (panel) panel.classList.toggle('ai-hidden');
             return;
         }
-
         if (e.ctrlKey && (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'и')) {
             e.preventDefault();
             picking = true;
             setStatus(t.clickBot, '#f59e0b');
             return;
         }
-
         if (e.ctrlKey && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'с')) {
-            if (selected) {
+            if (selectedElements.length > 0) {
                 e.preventDefault();
                 copyCode();
             }
             return;
         }
-
+        if (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'r' || e.key.toLowerCase() === 'к')) {
+            e.preventDefault();
+            resetSelection();
+            setStatus(t.fullReset, '#f59e0b');
+            return;
+        }
         if (e.key === 'Escape') {
             resetSelection();
-            picking = false;
         }
     }
 
-// ========== 10. ЗАПУСК СКРИПТА ==========
+    function handleTouch(e) {
+        if (!picking && selectedElements.length === 0) return;
+        if (e.target.closest && e.target.closest('#ai-collector-panel')) return;
+        const touch = e.touches[0];
+        if (touch) {
+            e.clientX = touch.clientX;
+            e.clientY = touch.clientY;
+            handleClick(e);
+        }
+    }
+
+    function checkUrlChange() {
+        const currentUrl = location.href;
+        if (currentUrl !== lastUrl) {
+            lastUrl = currentUrl;
+            if (selectedElements.length > 0) {
+                resetSelection();
+                console.log('[AI-Collector] Reset selection due to URL change');
+            }
+        }
+    }
+
+// ========== 11. ЗАПУСК СКРИПТА ==========
     function init() {
         panel = createPanel();
-        const prefix = currentPlatform.name + '_';
-        let last = GM_getValue(prefix + 'lastMsg', '');
-        if (last) {
-            setTimeout(() => {
-                let candidates = document.querySelectorAll(CONFIG.botSelectors);
-                for (let m of candidates) {
-                    if (isBotMessage(m) && (m.innerText || '').startsWith(last)) {
-                        selectMessage(m);
-                        break;
-                    }
-                }
-            }, 500);
-        }
-        console.log(`[${currentPlatform.name}] Ready`);
+        setInterval(cleanupDeadReferences, CLEANUP_INTERVAL);
+        setInterval(checkUrlChange, URL_CHECK_INTERVAL);
+        window.addEventListener('popstate', () => resetSelection());
+        console.log(`[${currentPlatform.name}] Ready - v3.6 (final stable)`);
     }
 
     document.addEventListener('click', handleClick, true);
     document.addEventListener('keydown', handleKey);
+    document.addEventListener('touchstart', handleTouch, true);
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
