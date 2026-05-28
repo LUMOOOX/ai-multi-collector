@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AI Multi-Collector Universal
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  Универсальный сборщик кода для DeepSeek, Gemini и ChatGPT v2.0: нумерация блоков, раздельное выделение, защита от дурака, горячие клавиши, автоочистка, сброс при смене чата
 // @author       LUMOOOX
 // @license      MIT
@@ -14,6 +14,8 @@
 // @grant        GM_setValue
 // @grant        GM_setClipboard
 // @run-at       document-end
+// @downloadURL https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.user.js
+// @updateURL https://update.greasyfork.org/scripts/577321/AI%20Multi-Collector%20Universal.meta.js
 // ==/UserScript==
 
 (function() {
@@ -597,7 +599,7 @@ function findFullCodeBlock(element) {
         setStatus(`${t.selected} (${selectedElements.length})`, '#10b981');
     }
 
-// ========== 8. ФУНКЦИЯ КОПИРОВАНИЯ ==========
+// ========== 8. ФУНКЦИЯ КОПИРОВАНИЯ (С СОРТИРОВКОЙ ПО ПОЗИЦИИ) ==========
     async function copyCode() {
         if (selectedElements.length === 0) {
             setStatus(t.selectFirst, '#f59e0b');
@@ -605,82 +607,88 @@ function findFullCodeBlock(element) {
         }
 
         let blocks = [];
-        let seenSignatures = new Set();
-        const STOP_WORDS = new Set([
-            'javascript', 'python', 'java', 'c++', 'c#', 'c', 'go', 'rust',
-            'ruby', 'php', 'html', 'css', 'sql', 'typescript', 'swift',
-            'kotlin', 'scala', 'perl', 'shell', 'bash', 'powershell',
-            'json', 'xml', 'yaml', 'markdown', 'txt', 'text'
-        ]);
 
         function cleanBlock(text) {
             let lines = text.split('\n');
             if (lines.length === 0) return text;
 
-            let firstCodeLine = lines[0].trim();
-
-            if (/^[a-z][a-z0-9+#.-]+$/i.test(firstCodeLine) &&
-                STOP_WORDS.has(firstCodeLine.toLowerCase())) {
-                lines.shift();
+            if (lines[0].startsWith('```') && lines[0].length > 3) {
+                lines[0] = '```';
                 return lines.join('\n').trim();
-            }
-
-            if (firstCodeLine.startsWith('```') && firstCodeLine.length > 3) {
-                let lang = firstCodeLine.substring(3).trim();
-                if (STOP_WORDS.has(lang) || /^[a-z]+$/i.test(lang)) {
-                    lines[0] = '```';
-                    return lines.join('\n').trim();
-                }
             }
 
             return text;
         }
 
-        function isTotallyJunk(text) {
-            return STOP_WORDS.has(text.trim().toLowerCase());
-        }
-
-        function getSignature(text) {
-            return text.substring(0, 100).trim().replace(/\s+/g, ' ');
+        function isExactDuplicate(text, existingBlocks) {
+            if (existingBlocks.length === 0) return false;
+            let lastBlock = existingBlocks[existingBlocks.length - 1];
+            return lastBlock === text;
         }
 
         let sortedElements = [...selectedElements];
+
         if (selectedType === 'codeblock') {
+            // Для блоков кода - сортировка по номерам
             sortedElements.sort((a, b) => {
                 let numA = parseInt(a.getAttribute('data-block-number')) || 0;
                 let numB = parseInt(b.getAttribute('data-block-number')) || 0;
                 return numA - numB;
             });
+        } else if (selectedType === 'message') {
+            // ДЛЯ СООБЩЕНИЙ - сортировка по позиции на странице (сверху вниз)
+            sortedElements.sort((a, b) => {
+                if (!a || !b) return 0;
+                const rectA = a.getBoundingClientRect();
+                const rectB = b.getBoundingClientRect();
+                return rectA.top - rectB.top;
+            });
         }
 
         for (let selected of sortedElements) {
             if (!selected) continue;
+
             let allPres = selected.tagName === 'PRE' ? [selected] : selected.querySelectorAll('pre');
 
-            for (let p of allPres) {
-                let rawTxt = getSafeText(p);
-                if (!rawTxt || isTotallyJunk(rawTxt)) continue;
-                let cleanedTxt = cleanBlock(rawTxt);
-                if (!cleanedTxt) continue;
-                let signature = getSignature(cleanedTxt);
-                if (!seenSignatures.has(signature)) {
-                    blocks.push(cleanedTxt);
-                    seenSignatures.add(signature);
+            if (selectedType === 'message' && allPres.length > 0) {
+                for (let p of allPres) {
+                    let rawTxt = getSafeText(p);
+                    if (!rawTxt) continue;
+                    let cleanedTxt = cleanBlock(rawTxt);
+                    if (cleanedTxt && !isExactDuplicate(cleanedTxt, blocks)) {
+                        blocks.push(cleanedTxt);
+                    }
                 }
             }
-
-            if (allPres.length === 0 && currentPlatform.name !== 'ChatGPT') {
+            else if (selectedType === 'codeblock') {
+                let pre = selected.tagName === 'PRE' ? selected : selected.querySelector('pre');
+                if (pre) {
+                    let rawTxt = getSafeText(pre);
+                    if (rawTxt) {
+                        let cleanedTxt = cleanBlock(rawTxt);
+                        if (cleanedTxt && !isExactDuplicate(cleanedTxt, blocks)) {
+                            blocks.push(cleanedTxt);
+                        }
+                    }
+                } else {
+                    let rawTxt = getSafeText(selected);
+                    if (rawTxt) {
+                        let cleanedTxt = cleanBlock(rawTxt);
+                        if (cleanedTxt && !isExactDuplicate(cleanedTxt, blocks)) {
+                            blocks.push(cleanedTxt);
+                        }
+                    }
+                }
+            }
+            else if (allPres.length === 0) {
                 let allCodes = selected.querySelectorAll('code');
                 for (let c of allCodes) {
                     if (c.closest('pre')) continue;
                     let rawTxt = getSafeText(c);
-                    if (!rawTxt || isTotallyJunk(rawTxt)) continue;
+                    if (!rawTxt) continue;
                     let cleanedTxt = cleanBlock(rawTxt);
-                    if (!cleanedTxt) continue;
-                    let signature = getSignature(cleanedTxt);
-                    if (!seenSignatures.has(signature)) {
+                    if (cleanedTxt && !isExactDuplicate(cleanedTxt, blocks)) {
                         blocks.push(cleanedTxt);
-                        seenSignatures.add(signature);
                     }
                 }
             }
